@@ -85,6 +85,7 @@ jobs:
           platforms: ${{ matrix.platforms }}
           labels: ${{ steps.meta.outputs.labels }}
           # tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}
           outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
 
           annotations: ${{ steps.meta.outputs.annotations }}
