@@ -83,6 +83,9 @@ jobs:
     needs:
       - docker-build-deploy
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
       - name: Download Digests
         uses: actions/download-artifact@v7
         with:
