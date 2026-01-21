@@ -96,7 +96,7 @@ jobs:
           touch "/tmp/digests/${digest#sha256:}"
 
       - name: Upload Digest
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v6
         with:
           name: digests
           path: /tmp/digests/*
@@ -116,7 +116,7 @@ jobs:
           echo "MC_VERSION=$(echo $VERSION | cut -d '+' -f 2)" >> $GITHUB_ENV
 
       - name: Download Digests
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v7
         with:
           name: digests
           path: /tmp/digests
