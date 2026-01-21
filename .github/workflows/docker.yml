@@ -17,8 +17,8 @@ jobs:
         include:
           - os: ubuntu-24.04-arm
             platforms: linux/arm64
-          - os: ubuntu-latest
-            platforms: linux/amd64
+          # - os: ubuntu-latest
+          #   platforms: linux/amd64
 
     runs-on: ${{matrix.os}}
 
