@@ -15,10 +15,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-24.04-arm
-            platforms: linux/arm64
-          # - os: ubuntu-latest
-          #   platforms: linux/amd64
+          # - os: ubuntu-24.04-arm
+          #   platforms: linux/arm64
+          - os: ubuntu-latest
+            platforms: linux/amd64, linux/arm64
 
     runs-on: ${{matrix.os}}
 
@@ -73,6 +73,9 @@ jobs:
             type=raw,value=mc${{ env.MC_VERSION }}
             type=raw,value=${{ env.PUMPKIN_VERSION }}
             type=raw,value=mc${{ env.MC_VERSION }}-${{ env.PUMPKIN_VERSION }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Docker Buildx
         if: steps.repo_check.outputs.should_deploy == 'true'
