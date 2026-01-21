@@ -11,14 +11,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  docker-build-deploy:
+  docker-build:
     strategy:
       matrix:
         include:
-          # - os: ubuntu-24.04-arm
-          #   platforms: linux/arm64
+          - os: ubuntu-24.04-arm
+            platforms: linux/arm64
           - os: ubuntu-latest
-            platforms: linux/amd64, linux/arm64
+            platforms: linux/amd64
 
     runs-on: ${{matrix.os}}
 
@@ -74,9 +74,6 @@ jobs:
             type=raw,value=${{ env.PUMPKIN_VERSION }}
             type=raw,value=mc${{ env.MC_VERSION }}-${{ env.PUMPKIN_VERSION }}
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
       - name: Docker Buildx
         if: steps.repo_check.outputs.should_deploy == 'true'
         uses: docker/setup-buildx-action@v3
@@ -85,10 +82,74 @@ jobs:
         if: steps.repo_check.outputs.should_deploy == 'true'
         uses: docker/build-push-action@v6
         with:
-          push: true
           platforms: ${{ matrix.platforms }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Export Digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload Digest
+        uses: actions/upload-artifact@v3
+        with:
+          name: digests
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-latest
+    needs:
+      - docker-build
+    steps:
+      - name: Extract Versions
+        id: versions
+        run: |
+          VERSION=$(awk -F '"' '/^version/ {print $2}' Cargo.toml)
+          echo "PUMPKIN_VERSION=$(echo $VERSION | cut -d '+' -f 1)" >> $GITHUB_ENV
+          echo "MC_VERSION=$(echo $VERSION | cut -d '+' -f 2)" >> $GITHUB_ENV
+
+      - name: Download Digests
+        uses: actions/download-artifact@v3
+        with:
+          name: digests
+          path: /tmp/digests
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract Metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=raw,value=latest
+            type=sha
+            type=raw,value=mc${{ env.MC_VERSION }}
+            type=raw,value=${{ env.PUMPKIN_VERSION }}
+            type=raw,value=mc${{ env.MC_VERSION }}-${{ env.PUMPKIN_VERSION }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create Manifest and Push Image
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}@sha256:%s ' *)
+            
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.REGISTRY_IMAGE }}:${{ steps.meta.outputs.version }}
